@@ -22,6 +22,12 @@ func init() {
 	flag.Parse()
 }
 
+/*
+	TODO:
+		test readDirNames -- see if I can remove hiden files if -a
+		use readDirNames for readDir
+*/
+
 func readDir(dirname string) ([]os.FileInfo, error) {
 	f, err := os.Open(dirname)
 	if err != nil {
@@ -32,7 +38,7 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(list, func(i, j int) bool { return list[i].Name() < list[j].Name() }) // sort how I'd like?
+	sort.Slice(list, func(i, j int) bool { return list[i].Name() < list[j].Name() }) // name, time, reverse
 	return list, nil
 }
 
@@ -154,7 +160,7 @@ func handleDir(files []os.FileInfo) []string {
 
 	if l_flag {
 		for _, file := range files {
-			if a_flag || file.Name()[0] != '.' {
+			if a_flag || file.Name()[0] != '.' { //Remove this line because the hiden files will be removed before it gets here
 				stat := file.Sys().(*syscall.Stat_t)
 				tmp := getFileString(file)
 				lines = append(lines, tmp) // returns a string, we append, and a a totoal block size? // then loop and print?
