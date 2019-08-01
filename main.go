@@ -11,21 +11,34 @@ import (
 	"syscall"
 )
 
-var l_flag, r_flag, R_flag, a_flag bool
-var g_path string
+var (
+	l_flag, r_flag, R_flag, a_flag bool
+	g_path                         string
+	getFileString                  func(os.FileInfo) string
+	printDir                       func(lines []string, blocks int64)
+)
 
 func init() {
 	flag.BoolVar(&l_flag, "l", false, "long format")
-	flag.BoolVar(&a_flag, "a", false, "long format")
-	flag.BoolVar(&R_flag, "R", false, "long format")
-	flag.StringVar(&g_path, "path", ".", "long format")
+	flag.BoolVar(&a_flag, "a", false, "Hidden files")
+	flag.BoolVar(&R_flag, "R", false, "Recursive")
+	flag.StringVar(&g_path, "path", ".", "path to be used")
 	flag.Parse()
+	if l_flag {
+		getFileString = getFileStringLong
+		printDir = printLong
+	} else {
+		getFileString = getFileStringShort
+		printDir = printShort
+	}
 }
 
 /*
 	TODO:
-		test readDirNames -- see if I can remove hiden files if -a
-		use readDirNames for readDir
+		*simlinks
+		figure out sorkint from readDir
+		//in c - loop, DIR and make a linked list of fileInfo - if ! -a skip '.' files then sort
+		// in go is it worth removing here? it's looping again - it's a waste
 */
 
 func readDir(dirname string) ([]os.FileInfo, error) {
@@ -41,82 +54,7 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	sort.Slice(list, func(i, j int) bool { return list[i].Name() < list[j].Name() }) // name, time, reverse
 	return list, nil
 }
-
-func walk2(path string, info os.FileInfo, walkFn func(os.FileInfo)) error {
-	if !info.IsDir() {
-		walkFn(info)
-		return nil
-	}
-
-	names, err := readDirNames(path)
-	walkFn(info)
-	// If err != nil, walk can't walk into this directory.
-	// err1 != nil means walkFn want walk to skip this directory or stop walking.
-	// Therefore, if one of err and err1 isn't nil, walk will return.
-	if err != nil {
-		// The caller's behavior is controlled by the return value, which is decided
-		// by walkFn. walkFn may ignore err and return nil.
-		// If walkFn returns SkipDir, it will be handled by the caller.
-		// So walk should return whatever walkFn returns.
-		return err
-	}
-	//	if -R dont go in if isDir
-	//	limit names in readDirNames
-	//	figure out return
-	//	and how to sum up the totals for that file
-	// print -- add fir que
-	for _, name := range names {
-		filename := filepath.Join(path, name)
-		fileInfo, err := os.Lstat(filename)
-		if err != nil {
-			walkFn(info)
-		} else {
-			err = walk2(filename, fileInfo, walkFn)
-			// print?
-			if err != nil {
-				if !fileInfo.IsDir() {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func readDirNames(dirname string) ([]string, error) {
-	f, err := os.Open(dirname)
-	if err != nil {
-		return nil, err
-	}
-	names, err := f.Readdirnames(-1)
-	f.Close()
-	if err != nil {
-		return nil, err
-	}
-	sort.Strings(names) // sort how ever i need			---- also remove the '.' here?
-	return names, nil
-}
-
-func printFile(file os.FileInfo) {
-	tmp := file.Sys().(*syscall.Stat_t)
-	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
-	if err != nil {
-		fmt.Println(err)
-	}
-	user, err := user.LookupId(strconv.FormatUint(uint64(tmp.Uid), 10))
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(file.Mode(),
-		tmp.Nlink,
-		user.Username,
-		group.Name,
-		tmp.Size,
-		file.ModTime().Format("Jan _2 15:04"),
-		file.Name())
-}
-
-func getFileString(file os.FileInfo) string {
+func getFileStringLong(file os.FileInfo) string {
 	tmp := file.Sys().(*syscall.Stat_t)
 	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
 	if err != nil {
@@ -137,47 +75,45 @@ func getFileString(file os.FileInfo) string {
 	return fileString
 
 }
-
+func getFileStringShort(file os.FileInfo) string {
+	return fmt.Sprintf("%s", file.Name())
+}
 func printLong(lines []string, blocks int64) {
 	fmt.Println("total:", blocks)
 	for _, line := range lines {
 		fmt.Println(line)
 	}
 }
+func printShort(lines []string, blocks int64) {
+	//handle the spacing here with terminal size ??
+	for _, line := range lines {
+		fmt.Println(line)
+	}
+}
 
 /*
-	Need a way to seperate reg print and long,
 	Takes a list of fileInfos
 	makes it into a string
 	prints and keeps track of what are dirs.
 */
 
 func handleDir(files []os.FileInfo) []string {
-	// table to all function?
 	lines := []string{}
 	queue := []string{}
 	var blocks int64
 
-	if l_flag {
-		for _, file := range files {
-			if a_flag || file.Name()[0] != '.' { //Remove this line because the hiden files will be removed before it gets here
-				stat := file.Sys().(*syscall.Stat_t)
-				tmp := getFileString(file)
-				lines = append(lines, tmp) // returns a string, we append, and a a totoal block size? // then loop and print?
-				blocks += stat.Blocks
-				if file.IsDir() {
-					queue = append(queue, file.Name())
-				}
-			}
-		}
-		printLong(lines, blocks)
-	} else {
-		for _, file := range files {
-			if a_flag || file.Name()[0] != '.' {
-				fmt.Println(file.Name())
+	for _, file := range files {
+		if a_flag || file.Name()[0] != '.' {
+			stat := file.Sys().(*syscall.Stat_t)
+			tmp := getFileString(file)
+			lines = append(lines, tmp)
+			blocks += stat.Blocks
+			if R_flag && file.IsDir() {
+				queue = append(queue, file.Name())
 			}
 		}
 	}
+	printDir(lines, blocks)
 	return queue
 }
 
@@ -210,44 +146,15 @@ func checkInput(root string) error {
 		fmt.Println("Bad path? or invalid name?")
 	} else if info.IsDir() {
 		return walk(root, info)
-		// return walk(root, info, printFile)
 	} else {
 		fmt.Println("it'not a dir - simple print", root)
 	}
 	return nil
 }
 
-func test(name string) {
-	info, err := os.Lstat(name)
-	// files, err := ioutil.ReadDir(name)
-	if err != nil {
-		fmt.Println(err)
-	}
-	// for _, info := range files {
-	tmp := info.Sys().(*syscall.Stat_t)
-	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
-	if err != nil {
-		fmt.Println(err)
-	}
-	user, err := user.LookupId(strconv.FormatUint(uint64(tmp.Uid), 10))
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(info.Mode(),
-		tmp.Nlink,
-		user.Username,
-		group.Name,
-		tmp.Size,
-		info.ModTime().Format("Jan _2 15:04"),
-		info.Name())
-
-}
-
 func main() {
 	// parse flags like in LS
 	// pass in a list of inputs, print bads, regs, and then go into dirs
-
-	// test("/tmp/a")
 
 	err := checkInput(g_path)
 	if err != nil {
