@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"syscall"
 )
 
@@ -34,54 +36,40 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	return list, nil
 }
 
-// func readDirNames(dirname string) ([]string, error) {
-// 	f, err := os.Open(dirname)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	names, err := f.Readdirnames(-1)
-// 	f.Close()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	sort.Strings(names) // sort how ever i need			---- also remove the '.' here?
-// 	return names, nil
-// }
-
-func printDir(files []os.FileInfo) {
-	// table to fall function?
-	if l_flag {
-		for _, file := range files {
-			if a_flag || file.Name()[0] != '.' {
-				fmt.Println(file.Mode(), "links", "name1", "name2", file.Size(), file.ModTime().Format("Jan _2 15:04"), file.Name())
-			}
-		}
-	} else {
-		for _, file := range files {
-			if a_flag || file.Name()[0] != '.' {
-				fmt.Println(file.Name())
-			}
-		}
+func walk2(path string, info os.FileInfo, walkFn func(os.FileInfo)) error {
+	if !info.IsDir() {
+		walkFn(info)
+		return nil
 	}
-}
 
-func walk(path string, info os.FileInfo) error {
-	stats, err := readDir(path)
+	names, err := readDirNames(path)
+	walkFn(info)
+	// If err != nil, walk can't walk into this directory.
+	// err1 != nil means walkFn want walk to skip this directory or stop walking.
+	// Therefore, if one of err and err1 isn't nil, walk will return.
 	if err != nil {
+		// The caller's behavior is controlled by the return value, which is decided
+		// by walkFn. walkFn may ignore err and return nil.
+		// If walkFn returns SkipDir, it will be handled by the caller.
+		// So walk should return whatever walkFn returns.
 		return err
 	}
-	printDir(stats)
-	if R_flag {
-		for _, file := range stats {
-			if a_flag || file.Name()[0] != '.' {
-				fileName := filepath.Join(path, file.Name())
-				fileInfo, err := os.Lstat(fileName)
-				if err != nil {
+	//	if -R dont go in if isDir
+	//	limit names in readDirNames
+	//	figure out return
+	//	and how to sum up the totals for that file
+	// print -- add fir que
+	for _, name := range names {
+		filename := filepath.Join(path, name)
+		fileInfo, err := os.Lstat(filename)
+		if err != nil {
+			walkFn(info)
+		} else {
+			err = walk2(filename, fileInfo, walkFn)
+			// print?
+			if err != nil {
+				if !fileInfo.IsDir() {
 					return err
-				}
-				if fileInfo.IsDir() {
-					fmt.Println(fileName, ":")
-					walk(fileName, fileInfo)
 				}
 			}
 		}
@@ -89,12 +77,134 @@ func walk(path string, info os.FileInfo) error {
 	return nil
 }
 
-func checkInput(root string) error { //check if it's a valid file/ dir
+func readDirNames(dirname string) ([]string, error) {
+	f, err := os.Open(dirname)
+	if err != nil {
+		return nil, err
+	}
+	names, err := f.Readdirnames(-1)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(names) // sort how ever i need			---- also remove the '.' here?
+	return names, nil
+}
+
+func printFile(file os.FileInfo) {
+	tmp := file.Sys().(*syscall.Stat_t)
+	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
+	if err != nil {
+		fmt.Println(err)
+	}
+	user, err := user.LookupId(strconv.FormatUint(uint64(tmp.Uid), 10))
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(file.Mode(),
+		tmp.Nlink,
+		user.Username,
+		group.Name,
+		tmp.Size,
+		file.ModTime().Format("Jan _2 15:04"),
+		file.Name())
+}
+
+func getFileString(file os.FileInfo) string {
+	tmp := file.Sys().(*syscall.Stat_t)
+	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
+	if err != nil {
+		fmt.Println(err)
+	}
+	user, err := user.LookupId(strconv.FormatUint(uint64(tmp.Uid), 10))
+	if err != nil {
+		fmt.Println(err)
+	}
+	fileString := fmt.Sprintf("%s %d %s %s %d %s %s",
+		file.Mode(),
+		tmp.Nlink,
+		user.Username,
+		group.Name,
+		tmp.Size,
+		file.ModTime().Format("Jan _2 15:04"),
+		file.Name())
+	return fileString
+
+}
+
+func printLong(lines []string, blocks int64) {
+	fmt.Println("total:", blocks)
+	for _, line := range lines {
+		fmt.Println(line)
+	}
+}
+
+/*
+	Need a way to seperate reg print and long,
+	Takes a list of fileInfos
+	makes it into a string
+	prints and keeps track of what are dirs.
+*/
+
+func handleDir(files []os.FileInfo) []string {
+	// table to all function?
+	lines := []string{}
+	queue := []string{}
+	var blocks int64
+
+	if l_flag {
+		for _, file := range files {
+			if a_flag || file.Name()[0] != '.' {
+				stat := file.Sys().(*syscall.Stat_t)
+				tmp := getFileString(file)
+				lines = append(lines, tmp) // returns a string, we append, and a a totoal block size? // then loop and print?
+				blocks += stat.Blocks
+				if file.IsDir() {
+					queue = append(queue, file.Name())
+				}
+			}
+		}
+		printLong(lines, blocks)
+	} else {
+		for _, file := range files {
+			if a_flag || file.Name()[0] != '.' {
+				fmt.Println(file.Name())
+			}
+		}
+	}
+	return queue
+}
+
+func walk(path string, info os.FileInfo) error {
+	stats, err := readDir(path)
+	if err != nil {
+		return err
+	}
+	queue := handleDir(stats)
+
+	if R_flag && len(queue) != 0 {
+		for _, name := range queue {
+			fileName := filepath.Join(path, name)
+			fileInfo, err := os.Lstat(fileName)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("\n%s:\n", fileName)
+			walk(fileName, fileInfo)
+		}
+	}
+	return nil
+}
+
+/*Will take a list of arguments to either print as dir, file or trash*/
+
+func checkInput(root string) error {
 	info, err := os.Lstat(root)
 	if err != nil {
 		fmt.Println("Bad path? or invalid name?")
 	} else if info.IsDir() {
 		return walk(root, info)
+		// return walk(root, info, printFile)
 	} else {
 		fmt.Println("it'not a dir - simple print", root)
 	}
@@ -103,19 +213,27 @@ func checkInput(root string) error { //check if it's a valid file/ dir
 
 func test(name string) {
 	info, err := os.Lstat(name)
+	// files, err := ioutil.ReadDir(name)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(info)
-	fmt.Printf("\n%v", info)
-	fmt.Printf("\n\n%#v", info)
-	fmt.Printf("\n\n%#v", info.Sys())
+	// for _, info := range files {
 	tmp := info.Sys().(*syscall.Stat_t)
-	fmt.Printf("\n\n%v", tmp.Nlink)
-	fmt.Printf("\n\n%v", tmp.Blocks)
-	fmt.Printf("\n\n%v", tmp.Blksize)
-	//get group name from group id?
-	// s, ok := info.Sys().(*syscall.Stat_t)
+	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
+	if err != nil {
+		fmt.Println(err)
+	}
+	user, err := user.LookupId(strconv.FormatUint(uint64(tmp.Uid), 10))
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(info.Mode(),
+		tmp.Nlink,
+		user.Username,
+		group.Name,
+		tmp.Size,
+		info.ModTime().Format("Jan _2 15:04"),
+		info.Name())
 
 }
 
@@ -123,10 +241,10 @@ func main() {
 	// parse flags like in LS
 	// pass in a list of inputs, print bads, regs, and then go into dirs
 
-	test("tmp")
+	// test("/tmp/a")
 
-	// err := checkInput(g_path)
-	// if err != nil {
-	// 	println(err)
-	// }
+	err := checkInput(g_path)
+	if err != nil {
+		println(err)
+	}
 }
