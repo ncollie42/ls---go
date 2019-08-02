@@ -4,17 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"syscall"
 )
 
 var (
 	l_flag, r_flag, R_flag, a_flag, t_flag bool
 	g_path                                 string
-	getFileString                          func(os.FileInfo) string
+	getFileString                          func(string, os.FileInfo) string
 	printDir                               func(lines []string, blocks int64)
 	compare                                func(file []os.FileInfo) compareFunc
 )
@@ -51,34 +49,15 @@ func init() {
 
 /*
 	TODO:
-		*simlinks
-		* include the ./ on the long?
 		* parse flags like ls
+		* formating on regular ls
+		* color
+		* major - minor?
+		* include the ./ on the long?
+
 		//in c - loop, DIR and make a linked list of fileInfo - if ! -a skip '.' files then sort
 		// in go is it worth removing here? it's looping again - it's a waste
 */
-
-/*		Sorting functions		*/
-func byTimeReverse(file []os.FileInfo) compareFunc {
-	return func(i, j int) bool {
-		return !file[i].ModTime().After(file[j].ModTime())
-	}
-}
-func byTime(file []os.FileInfo) compareFunc {
-	return func(i, j int) bool {
-		return file[i].ModTime().After(file[j].ModTime())
-	}
-}
-func byName(file []os.FileInfo) compareFunc {
-	return func(i, j int) bool {
-		return file[i].Name() < file[j].Name()
-	}
-}
-func byNameReverse(file []os.FileInfo) compareFunc {
-	return func(i, j int) bool {
-		return file[i].Name() > file[j].Name()
-	}
-}
 
 /*Go's readdir skips . and .., Using this function to add them back*/
 
@@ -114,50 +93,13 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	return list, nil
 }
 
-func getFileStringLong(file os.FileInfo) string {
-	tmp := file.Sys().(*syscall.Stat_t)
-	group, err := user.LookupGroupId(strconv.FormatUint(uint64(tmp.Gid), 10))
-	if err != nil {
-		fmt.Println(err)
-	}
-	user, err := user.LookupId(strconv.FormatUint(uint64(tmp.Uid), 10))
-	if err != nil {
-		fmt.Println(err)
-	}
-	fileString := fmt.Sprintf("%s %d %s %s %d %s %s",
-		file.Mode(),
-		tmp.Nlink,
-		user.Username,
-		group.Name,
-		tmp.Size, //file.size()
-		file.ModTime().Format("Jan _2 15:04"),
-		file.Name())
-	return fileString
-
-}
-func getFileStringShort(file os.FileInfo) string {
-	return fmt.Sprintf("%s", file.Name())
-}
-func printLong(lines []string, blocks int64) {
-	fmt.Println("total", blocks)
-	for _, line := range lines {
-		fmt.Println(line)
-	}
-}
-func printShort(lines []string, blocks int64) {
-	//handle the spacing here with terminal size ??
-	for _, line := range lines {
-		fmt.Println(line)
-	}
-}
-
 /*
 	Takes a list of fileInfos from a DIR
 	makes a [] of strings from each of the files inside
 	prints and keeps a queue of Dirs in current dir if recursive
 */
 
-func handleDir(files []os.FileInfo) []string {
+func handleDir(path string, files []os.FileInfo) []string {
 	lines := []string{}
 	queue := []string{}
 	var blocks int64
@@ -165,7 +107,7 @@ func handleDir(files []os.FileInfo) []string {
 	for _, file := range files {
 		if a_flag || file.Name()[0] != '.' {
 			stat := file.Sys().(*syscall.Stat_t)
-			tmp := getFileString(file)
+			tmp := getFileString(path, file)
 			lines = append(lines, tmp)
 			blocks += stat.Blocks
 			if R_flag && file.IsDir() && file.Name() != "." && file.Name() != ".." { // Dont go into . or ..
@@ -185,7 +127,7 @@ func walk(path string, info os.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	queue := handleDir(stats)
+	queue := handleDir(path, stats)
 
 	if R_flag && len(queue) != 0 {
 		for _, name := range queue {
