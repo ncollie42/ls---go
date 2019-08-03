@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -57,7 +58,7 @@ func init() {
 	col, row = getTerminalSize()
 	fmt.Println("col:", col, "row", row)
 }
-ß
+
 /*
 	TODO:
 		* parse flags like ls
@@ -212,10 +213,44 @@ func checkInput(root string) error {
 	return nil
 }
 
+const flagUsage = "usage: ls [-ABCFGHLOPRSTUWabcdefghiklmnopqrstuwx1] [file ...]"
+
+func parseFlag(arg string) error {
+	for _, char := range arg {
+		switch char {
+		case 'a':
+			fmt.Println("we got an l")
+		case 'l':
+			fmt.Println("we got an l")
+		case 'r':
+			fmt.Println("we got an r")
+		default:
+			fmt.Printf("ls: illegal option --%c\n", char)
+			return errors.New(flagUsage)
+		}
+	}
+	return nil
+}
+
+func getFlags(args []string) []string {
+	fmt.Println("b4:", args, "size:", len(args))
+	for index, arg := range args {
+		fmt.Println(arg) // need to skip :1
+		if arg[0] == '-' {
+			parseFlag(arg[1:])
+		} else {
+			return args[index:]
+		}
+	}
+	return nil // or just return "."
+}
+
 func main() {
 	// parse flags like in LS
 	// pass in a list of inputs, print bads, regs, and then go into dirs
-
+	// args := os.Args
+	// args = getFlags(args[1:])
+	// fmt.Println("after:", args)
 	err := checkInput(g_path)
 	if err != nil {
 		println(err)

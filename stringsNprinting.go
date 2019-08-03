@@ -65,7 +65,10 @@ func printShort(spacing spacing, lines []string, blocks int64) {
 	fmt.Println(spacing.name)
 
 	rows := col / uint(spacing.name)
+
 	counter := rows
+	fmt.Println(rows, col)
+
 	for _, line := range lines {
 		fmt.Printf("%-*s", spacing.name, line)
 		counter--
