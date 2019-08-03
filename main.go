@@ -1,19 +1,19 @@
 package main
 
 import (
-	"errors"
-	"flag"
+	// "errors"
+	// "flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"syscall"
 )
-
+const flagUsage = "usage: ls [-atlrR] [file ...]"
 var (
 	l_flag, r_flag, R_flag, a_flag, t_flag bool
 	col, row                               uint
-	g_path                                 string
+	g_path                                 []string
 	getFileString                          func(spacing, os.FileInfo, string) string
 	printDir                               func(spacing, []string, int64)
 	compare                                func(file []os.FileInfo) compareFunc
@@ -30,13 +30,16 @@ type spacing struct {
 }
 
 func init() {
-	flag.BoolVar(&l_flag, "l", false, "long format")
-	flag.BoolVar(&a_flag, "a", false, "Hidden files")
-	flag.BoolVar(&t_flag, "t", false, "sort time")
-	flag.BoolVar(&r_flag, "r", false, "sort reverse")
-	flag.BoolVar(&R_flag, "R", false, "Recursive")
-	flag.StringVar(&g_path, "path", ".", "path to be used")
-	flag.Parse()
+	// flag.BoolVar(&l_flag, "l", false, "long format")
+	// flag.BoolVar(&a_flag, "a", false, "Hidden files")
+	// flag.BoolVar(&t_flag, "t", false, "sort time")
+	// flag.BoolVar(&r_flag, "r", false, "sort reverse")
+	// flag.BoolVar(&R_flag, "R", false, "Recursive")
+	// flag.StringVar(&g_path, "path", ".", "path to be used")
+	// flag.Parse()
+	// args := os.Args
+	// args = ParseArgs(args[1:])
+	// g_path = 
 	if l_flag {
 		getFileString = getFileStringLong
 		printDir = printLong
@@ -56,7 +59,7 @@ func init() {
 		compare = byName
 	}
 	col, row = getTerminalSize()
-	fmt.Println("col:", col, "row", row)
+	// fmt.Println("col:", col, "row", row)
 }
 
 /*
@@ -202,56 +205,81 @@ func walk(path string, info os.FileInfo) error {
 /*Will take a list of arguments to either print as dir, file or trash*/
 
 func checkInput(root string) error {
-	info, err := os.Lstat(root)
+	// for _, curent := range args {
+
+	// }
+	info, err := os.Lstat(root)	
 	if err != nil {
-		fmt.Println("Bad path? or invalid name?")
+		fmt.Println("ls:", root, "No such file or directory")
 	} else if info.IsDir() {
 		return walk(root, info)
 	} else {
-		fmt.Println("it'not a dir - simple print", root)
+		fmt.Println(root)
 	}
 	return nil
 }
 
-const flagUsage = "usage: ls [-ABCFGHLOPRSTUWabcdefghiklmnopqrstuwx1] [file ...]"
+func checkInput2(args []string) error {
+	// trash := []string{}
+	// files := []string{}
+	// dirs := []string{}
+	
+	// for _, curent := range args {
+	// 	info, err := os.Lstat(curent)	
+	// 	if err != nil {
+	// 		trash := append(trash, curent)
+	// 	} else if info.IsDir() {
+	// 		dirs := append(dirs, curent)
+	// 	} else {
+	// 		files := append(files, curent)
+	// 	}
+	// }
+		// input is already sorted
+	return nil
+}
 
-func parseFlag(arg string) error {
-	for _, char := range arg {
+
+func parseFlag(arg string)  {
+	for _, char := range arg[1:] {
 		switch char {
 		case 'a':
-			fmt.Println("we got an l")
+			a_flag = true
+		case 't':
+			t_flag = true
 		case 'l':
-			fmt.Println("we got an l")
+			l_flag = true
 		case 'r':
-			fmt.Println("we got an r")
+			r_flag = true
+		case 'R':
+			R_flag = true
 		default:
-			fmt.Printf("ls: illegal option --%c\n", char)
-			return errors.New(flagUsage)
+			fmt.Printf("ls: illegal option -- %c\n", char)
+			fmt.Printf(flagUsage)
+			os.Exit(-1)
 		}
 	}
-	return nil
 }
 
-func getFlags(args []string) []string {
-	fmt.Println("b4:", args, "size:", len(args))
+func parseArgs(args []string) []string {
 	for index, arg := range args {
-		fmt.Println(arg) // need to skip :1
-		if arg[0] == '-' {
-			parseFlag(arg[1:])
+		if arg[0] == '-' && len(arg) > 1{
+			parseFlag(arg)
 		} else {
 			return args[index:]
 		}
 	}
-	return nil // or just return "."
+	return []string{"."}
 }
 
 func main() {
-	// parse flags like in LS
-	// pass in a list of inputs, print bads, regs, and then go into dirs
-	// args := os.Args
-	// args = getFlags(args[1:])
-	// fmt.Println("after:", args)
-	err := checkInput(g_path)
+	args := os.Args //move to init
+	args = parseArgs(args[1:])
+
+	fmt.Println("after:1", args)
+	sort.Slice(args, func(i, j int) bool { return args[i] < args[j] })
+	fmt.Println("after:2", args)
+	// tmp := args[0]
+	err := checkInput(tmp)
 	if err != nil {
 		println(err)
 	}
