@@ -11,13 +11,22 @@ import (
 
 var (
 	l_flag, r_flag, R_flag, a_flag, t_flag bool
+	col, row                               uint
 	g_path                                 string
-	getFileString                          func(string, os.FileInfo) string
-	printDir                               func(lines []string, blocks int64)
+	getFileString                          func(spacing, os.FileInfo, string) string
+	printDir                               func(spacing, []string, int64)
 	compare                                func(file []os.FileInfo) compareFunc
 )
 
 type compareFunc func(i, j int) bool
+
+type spacing struct {
+	link  int
+	user  int
+	group int
+	size  int
+	name  int // only for reg?
+}
 
 func init() {
 	flag.BoolVar(&l_flag, "l", false, "long format")
@@ -45,8 +54,10 @@ func init() {
 	} else {
 		compare = byName
 	}
+	col, row = getTerminalSize()
+	fmt.Println("col:", col, "row", row)
 }
-
+ß
 /*
 	TODO:
 		* parse flags like ls
@@ -75,8 +86,48 @@ func DotDotDot(dirname string) []os.FileInfo {
 	tmp = append(tmp, fileInfo)
 	return tmp
 }
+func intCheck(new, old int) int {
+	tmp := countDigits(new)
+	if tmp > old {
+		return tmp
+	}
+	return old
+}
+func countDigits(i int) (count int) {
+	for i != 0 {
+
+		i /= 10
+		count = count + 1
+	}
+	return count
+}
+func stringCheck(new string, old int) int {
+	tmp := len(new)
+	if tmp > old {
+		return tmp
+	}
+	return old
+
+}
+
+//just used to get spacing
+func getDirSpacing(files []os.FileInfo) spacing {
+	var spacing spacing
+
+	for _, file := range files {
+		stat := file.Sys().(*syscall.Stat_t) //might not work
+		group, user := getUserNGroup(stat)
+		spacing.link = intCheck(int(stat.Nlink), spacing.link)
+		spacing.user = stringCheck(user, spacing.user)
+		spacing.group = stringCheck(group, spacing.group)
+		spacing.size = intCheck(int(stat.Size), spacing.size)
+		spacing.name = stringCheck(file.Name(), spacing.name)
+	}
+	return spacing
+}
 
 func readDir(dirname string) ([]os.FileInfo, error) {
+
 	f, err := os.Open(dirname)
 	if err != nil {
 		return nil, err
@@ -89,7 +140,8 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	if a_flag { // adding . and .. because f.Readdir doesn't return them
 		list = append(list, DotDotDot(dirname)...)
 	}
-	sort.Slice(list, compare(list))
+	sort.Slice(list, compare(list)) // add stat struct and  path
+
 	return list, nil
 }
 
@@ -99,15 +151,17 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	prints and keeps a queue of Dirs in current dir if recursive
 */
 
-func handleDir(path string, files []os.FileInfo) []string {
+func handleDir(files []os.FileInfo, path string) []string {
 	lines := []string{}
 	queue := []string{}
 	var blocks int64
 
+	spacing := getDirSpacing(files) //Probably not efficient
+
 	for _, file := range files {
 		if a_flag || file.Name()[0] != '.' {
 			stat := file.Sys().(*syscall.Stat_t)
-			tmp := getFileString(path, file)
+			tmp := getFileString(spacing, file, path)
 			lines = append(lines, tmp)
 			blocks += stat.Blocks
 			if R_flag && file.IsDir() && file.Name() != "." && file.Name() != ".." { // Dont go into . or ..
@@ -115,7 +169,7 @@ func handleDir(path string, files []os.FileInfo) []string {
 			}
 		}
 	}
-	printDir(lines, blocks)
+	printDir(spacing, lines, blocks)
 	return queue
 }
 
@@ -123,11 +177,12 @@ func handleDir(path string, files []os.FileInfo) []string {
 	Reads a dir, prints, if recursive - calls function again on queue
 */
 func walk(path string, info os.FileInfo) error {
-	stats, err := readDir(path)
+	files, err := readDir(path)
 	if err != nil {
 		return err
 	}
-	queue := handleDir(path, stats)
+
+	queue := handleDir(files, path)
 
 	if R_flag && len(queue) != 0 {
 		for _, name := range queue {
