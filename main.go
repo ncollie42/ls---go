@@ -25,6 +25,7 @@ type spacing struct {
 	group int
 	size  int
 	name  int
+	numberOfFiles  int
 }
 /*
 	TODO:

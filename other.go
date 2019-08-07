@@ -1,12 +1,14 @@
 package main
+
 import (
 	"os"
 	"syscall"
 )
+
 //just used to get spacing
 func getDirSpacing(files []os.FileInfo) spacing {
 	var spacing spacing
-
+	count := 0
 	for _, file := range files {
 		stat := file.Sys().(*syscall.Stat_t) //might not work
 		group, user := getUserNGroup(stat)
@@ -15,7 +17,9 @@ func getDirSpacing(files []os.FileInfo) spacing {
 		spacing.group = stringCheck(group, spacing.group)
 		spacing.size = intCheck(int(stat.Size), spacing.size)
 		spacing.name = stringCheck(file.Name(), spacing.name)
+		spacing.numberOfFiles++
 	}
+	spacing.name++
 	return spacing
 }
 

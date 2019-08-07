@@ -43,7 +43,7 @@ func getFileStringLong(spacing spacing, file os.FileInfo, path string) string { 
 		user,
 		spacing.group,
 		group,
-		spacing.size+1,
+		spacing.size,
 		stat.Size,
 		file.ModTime().Format("Jan _2 15:04"),
 		file.Name(),
@@ -64,8 +64,9 @@ func printShort(spacing spacing, lines []string, blocks int64) {
 
 	// fmt.Println(spacing.name)
 
-	rows := col / uint(spacing.name)
-
+	nameCol := col / uint(spacing.name)
+	tmp := 0
+	for tmp = spacing.numberOfFiles % nameCol 
 	counter := rows
 	// fmt.Println(rows, col)
 
