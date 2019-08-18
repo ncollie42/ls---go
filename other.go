@@ -8,7 +8,6 @@ import (
 //just used to get spacing
 func getDirSpacing(files []os.FileInfo) spacing {
 	var spacing spacing
-	count := 0
 	for _, file := range files {
 		stat := file.Sys().(*syscall.Stat_t) //might not work
 		group, user := getUserNGroup(stat)

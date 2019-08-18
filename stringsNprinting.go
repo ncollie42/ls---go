@@ -62,19 +62,14 @@ func printLong(spacing spacing, lines []string, blocks int64) {
 }
 func printShort(spacing spacing, lines []string, blocks int64) {
 
-	// fmt.Println(spacing.name)
-
-	nameCol := col / uint(spacing.name)
-	tmp := 0
-	for tmp = spacing.numberOfFiles % nameCol 
-	counter := rows
-	// fmt.Println(rows, col)
-
+	// nameCol := col / uint(spacing.name)
+	// var tmp uint
+	// for tmp = spacing.numberOfFiles % nameCol; tmp <= (nameCol - 1); nameCol-- {
+	// 	fmt.Println(tmp)
+	// }
 	for _, line := range lines {
 		fmt.Printf("%-*s", spacing.name, line)
-		counter--
-		if counter == 0 {
-			counter = rows
-		}
 	}
 }
+
+//check sizeof structs with methods

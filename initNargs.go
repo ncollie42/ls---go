@@ -1,11 +1,13 @@
 package main
- import (
-	 "os"
-	 "fmt"
- )
+
+import (
+	"fmt"
+	"os"
+)
+
 func parseArgs(args []string) []string {
 	for index, arg := range args {
-		if arg[0] == '-' && len(arg) > 1{
+		if arg[0] == '-' && len(arg) > 1 {
 			parseFlag(arg)
 		} else {
 			return args[index:]
@@ -14,8 +16,7 @@ func parseArgs(args []string) []string {
 	return []string{"."}
 }
 
-
-func parseFlag(arg string)  {
+func parseFlag(arg string) {
 	for _, char := range arg[1:] {
 		switch char {
 		case 'a':
@@ -58,13 +59,13 @@ func setFunctions() {
 	col, row = getTerminalSize()
 }
 
-func separateArgs(args []string) (trash[]string, files[]string, dirs[]string) {
+func separateArgs(args []string) (trash []string, files []string, dirs []string) {
 	for _, curent := range args {
-		info, err := os.Lstat(curent)	
+		info, err := os.Lstat(curent)
 		if err != nil {
 			trash = append(trash, curent)
 		} else if info.IsDir() {
-			dirs = append(dirs, curent)
+			dirs = append(dirs, curent)		// maybe dirs should just be the info not a string
 		} else {
 			files = append(files, curent)
 		}
@@ -74,11 +75,11 @@ func separateArgs(args []string) (trash[]string, files[]string, dirs[]string) {
 
 func handleDirs(args []string) error {
 	for _, curent := range args {
-		info, err := os.Lstat(curent)
+		_, err := os.Lstat(curent)	// pass info struct? not string
 		if err != nil {
 			return err
 		}
-		return walk(curent, info)
+		return walk(curent)
 	}
 	return nil
 }

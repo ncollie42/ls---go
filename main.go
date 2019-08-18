@@ -7,7 +7,9 @@ import (
 	"sort"
 	"syscall"
 )
+
 const flagUsage = "usage: ls [-atlrR] [file ...]"
+
 var (
 	l_flag, r_flag, R_flag, a_flag, t_flag bool
 	col, row                               uint
@@ -20,16 +22,18 @@ var (
 type compareFunc func(i, j int) bool
 
 type spacing struct {
-	link  int
-	user  int
-	group int
-	size  int
-	name  int
-	numberOfFiles  int
+	link          int
+	user          int
+	group         int
+	size          int
+	name          int
+	numberOfFiles uint
 }
+
 /*
 	TODO:
 		* -ls -t by nano
+		* argument -r on params
 		* formating on regular ls
 		* color
 		* major - minor?
@@ -103,7 +107,7 @@ func handleDir(files []os.FileInfo, path string) []string {
 	return queue
 }
 
-func walk(path string, info os.FileInfo) error {
+func walk(path string) error {
 	files, err := readDir(path)
 	if err != nil {
 		return err
@@ -114,22 +118,23 @@ func walk(path string, info os.FileInfo) error {
 	if R_flag && len(queue) != 0 {
 		for _, name := range queue {
 			fileName := filepath.Join(path, name)
-			fileInfo, err := os.Lstat(fileName)
+			_, err := os.Lstat(fileName)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("\n%s:\n", fileName)
-			walk(fileName, fileInfo)
+			walk(fileName)
 		}
 	}
 	return nil
 }
 
+// removed argument from walk??
 func main() {
-	args := os.Args 
+	args := os.Args
 	args = parseArgs(args[1:])
 	setFunctions()
-	sort.Slice(args, func(i, j int) bool { return args[i] < args[j] })
+	sort.Slice(args, func(i, j int) bool { return args[i] < args[j] }) // r?
 
 	trash, files, dirs := separateArgs(args)
 	printTrash(trash)
