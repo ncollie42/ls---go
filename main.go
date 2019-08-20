@@ -76,6 +76,10 @@ func readDir(dirname string) ([]os.FileInfo, error) {
 	}
 	sort.Slice(list, compare(list)) // add stat struct and  path
 
+	// for _, i := range list {
+	// 	fmt.Printf("%#V\n", i)
+	// }
+
 	return list, nil
 }
 

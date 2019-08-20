@@ -34,6 +34,8 @@ func getFileStringLong(spacing spacing, file os.FileInfo, path string) string { 
 	stat := file.Sys().(*syscall.Stat_t)
 	group, user := getUserNGroup(stat)
 	link := checkLink(path, file)
+	
+	
 
 	fileString := fmt.Sprintf("%s  %*d %*s %*s %*d %s %s %s",
 		file.Mode(),
@@ -55,7 +57,7 @@ func getFileStringShort(spacing spacing, file os.FileInfo, path string) string {
 	return fmt.Sprintf("%s", file.Name())
 }
 func printLong(spacing spacing, lines []string, blocks int64) {
-	fmt.Println("total", blocks)
+	fmt.Println("total", blocks)	// Remove this and just have 1 print and use total outside on a check
 	for _, line := range lines {
 		fmt.Println(line)
 	}
